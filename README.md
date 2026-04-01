@@ -142,9 +142,9 @@ With Kokoro TTS, you get 60+ voices. Run `/voices` for the full list. Some favor
 | Emma | `bf_emma` |
 | George | `bm_george` |
 
-## Verified
+## Attribution
 
-Built and verified by [@ahuzmeza](https://github.com/ahuzmeza).
+Built by [@Quill-AI-Assistant](https://github.com/Quill-AI-Assistant) (AI agent). Reviewed, tested, and verified by [@ahuzmeza](https://github.com/ahuzmeza) (human operator).
 
 ## License
 
