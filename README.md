@@ -1,23 +1,36 @@
 # Claude Code Voice Bridge
 
-Talk to Claude Code hands-free. All voice processing runs locally.
+Hands-free voice conversations with Claude Code. Speak commands, hear responses. All voice processing runs locally.
 
 ```
-You ──mic──> Whisper STT ──text──> Claude Code ──text──> Kokoro TTS ──audio──> Speakers
-             (local)                (CLI)                 (local)
+You --mic--> Whisper STT --text--> Claude Code --text--> Kokoro TTS --audio--> Speakers
+              (local)               (CLI)                 (local)
 ```
+
+## Why this project
+
+Claude Code has voice input (`/voice`) but no voice output. You can speak to it, but it can't speak back. This bridge closes the loop — full two-way voice conversation with Claude Code, hands-free.
+
+This matters for:
+
+- **Accessibility** — developers with vision or motor disabilities who need hands-free coding
+- **Workflow** — architecture discussions, code review, planning — tasks that are naturally conversational
+- **Multitasking** — talk to Claude while your hands are on the keyboard, soldering iron, or whiteboard
+
+Everything runs locally. Whisper transcribes your voice on-device. Kokoro speaks Claude's responses on-device. Only the Claude Code CLI touches the network. No API keys for voice, no cloud TTS, no data leaves your machine for speech processing.
+
+Related: [anthropics/claude-code#42226](https://github.com/anthropics/claude-code/issues/42226) — feature request for native bidirectional voice support.
 
 ## Quick start
 
 ```bash
-# One-time setup (installs everything)
+git clone https://github.com/Quill-AI-Assistant/claude-code-voice-bridge.git
+cd claude-code-voice-bridge
 ./setup.sh
-
-# Run
 python3 bridge.py
 ```
 
-That's it. Speak into your mic. Claude responds with voice.
+Speak into your mic. Claude responds with voice.
 
 The bridge auto-starts STT/TTS services if they're not running.
 
@@ -35,7 +48,7 @@ python3 bridge.py --calibrate             # auto-detect mic threshold
 
 ## Runtime commands
 
-Type or say these anytime:
+Type or say these anytime — even while the mic is listening:
 
 | Command | What it does |
 |---|---|
@@ -50,19 +63,50 @@ Type or say these anytime:
 | `/attach ID` | Switch to a session |
 | `/session` | Show current status |
 | `/exit` | Quit |
+| `Esc` | Interrupt Claude mid-response |
 | `speak faster` | Increase speed |
 | `speak slower` | Decrease speed |
-| `change voice to X` | Switch voice |
+| `change voice to X` | Switch voice by speaking |
 
 ## How it works
 
 1. A persistent `claude -p --input-format stream-json` subprocess stays alive for the session
 2. Your voice is captured by a persistent audio stream with energy-based VAD
-3. Speech audio goes to a local Whisper server for transcription
-4. Text goes to Claude Code as a stream-json message — full tool access, file edits, everything
-5. Claude's streaming response is chunked by sentence and queued for TTS
-6. A background thread generates audio via Kokoro and plays it through speakers
-7. Speak during playback to interrupt — playback polls every 50ms for your voice
+3. Speech is sent to a local Whisper server for transcription with confidence scoring
+4. Transcribed text goes to Claude Code as a stream-json message — full tool access, file edits, everything
+5. Claude's streaming response is chunked by sentence boundaries and queued for TTS
+6. A background thread generates audio via Kokoro and plays it with interruptible polling
+7. Speak during playback or press Esc to interrupt — playback stops within 50ms
+
+## Confidence scoring
+
+Every voice input shows a colour-coded confidence score from Whisper:
+
+- **Green [85%]** — high confidence, sent as-is
+- **Yellow [62%]** — medium confidence, may need clarification
+- **Red [30%]** — low confidence, single-word fragments are filtered
+
+Low-confidence single words are automatically rejected to prevent Whisper hallucinations from triggering commands.
+
+## Architecture
+
+```
++----------------------------------------------+
+|          Claude Code Voice Bridge             |
+|                                               |
+|  Mic --> STT --> +---------------+ --> TTS    |
+|                  |  Claude Code  |            |
+|  Keyboard -----> |  (persistent  | ---------> |
+|                  |   subprocess) |            |
+|                  +---------------+            |
++----------------------------------------------+
+```
+
+- **Single process**: Claude Code runs once, stays alive across turns
+- **Bidirectional stream-json**: stdin/stdout as newline-delimited JSON
+- **Interruptible**: Voice or Esc stops Claude mid-sentence
+- **Type anytime**: Keyboard works even while mic is listening
+- **Session portable**: Resume in the bridge or in regular `claude --resume`
 
 ## Prerequisites
 
@@ -98,25 +142,9 @@ With Kokoro TTS, you get 60+ voices. Run `/voices` for the full list. Some favor
 | Emma | `bf_emma` |
 | George | `bm_george` |
 
-## Architecture
+## Verified
 
-```
-┌─────────────────────────────────────────────┐
-│              Voice Bridge                    │
-│                                              │
-│  Mic ──> STT ──> ┌──────────────┐ ──> TTS  │
-│                  │  Claude Code  │          │
-│  Keyboard ─────> │  (persistent  │ ────────>│
-│                  │   subprocess) │          │
-│                  └──────────────┘          │
-└─────────────────────────────────────────────┘
-```
-
-- **Single process**: Claude Code runs once, stays alive across turns
-- **Bidirectional stream-json**: stdin/stdout as newline-delimited JSON
-- **Interruptible**: Speak to stop Claude mid-sentence
-- **Type anytime**: Keyboard works even while mic is listening
-- **Session portable**: Resume in the bridge or in regular `claude --resume`
+Built and verified by [@ahuzmeza](https://github.com/ahuzmeza).
 
 ## License
 
